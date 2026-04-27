@@ -1,0 +1,466 @@
+openapi: 3.0.3
+info:
+  title: ResponseFlow API
+  description: Smart Service Experience API for managing customer requests, staff assignments, and service performance in hospitality and service businesses.
+  version: 1.0.0
+
+servers:
+  - url: https://responseflow.onrender.com
+    description: Production (Render)
+  - url: http://localhost:3000
+    description: Local development
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [staff, manager, admin] }
+        createdAt: { type: string, format: date-time }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        contactInfo: { type: string }
+        locationLabel: { type: string }
+        customerType: { type: string, enum: [guest, member, shopper] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ServiceRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        customerId: { type: integer }
+        requestType: { type: string, enum: [water_refill, check_request, manager_help, product_assistance, clean_up, other] }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high] }
+        status: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    StaffAssignment:
+      type: object
+      properties:
+        id: { type: integer }
+        serviceRequestId: { type: integer }
+        staffUserId: { type: integer }
+        assignedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        notes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, example: Jane Doe }
+                email: { type: string, example: jane@example.com }
+                password: { type: string, example: SecurePass123! }
+                role: { type: string, enum: [staff, manager, admin], example: staff }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { description: Missing or invalid fields }
+        '409': { description: Email already in use }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and receive a JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: admin@responseflow.com }
+                password: { type: string, example: Admin1234! }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { description: Missing fields }
+        '401': { description: Invalid email or password }
+
+  # ── Customers ─────────────────────────────────────────────────────────────
+  /api/customers:
+    get:
+      tags: [Customers]
+      summary: Get all customers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: customerType
+          schema: { type: string, enum: [guest, member, shopper] }
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Customer' }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+    post:
+      tags: [Customers]
+      summary: Create a new customer
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: John Smith }
+                contactInfo: { type: string, example: '555-1234' }
+                locationLabel: { type: string, example: Table 4 }
+                customerType: { type: string, enum: [guest, member, shopper], example: guest }
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400': { description: Missing required fields }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+  /api/customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get a single customer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Customer found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '404': { description: Customer not found }
+
+    put:
+      tags: [Customers]
+      summary: Update a customer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                contactInfo: { type: string }
+                locationLabel: { type: string }
+                customerType: { type: string, enum: [guest, member, shopper] }
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400': { description: Invalid fields or ID }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Customer not found }
+
+    delete:
+      tags: [Customers]
+      summary: Delete a customer (admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Customer deleted }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - admin only }
+        '404': { description: Customer not found }
+
+  # ── Service Requests ──────────────────────────────────────────────────────
+  /api/service-requests:
+    get:
+      tags: [ServiceRequests]
+      summary: Get all service requests
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+        - in: query
+          name: priority
+          schema: { type: string, enum: [low, medium, high] }
+      responses:
+        '200':
+          description: List of service requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ServiceRequest' }
+        '401': { description: Unauthorized }
+
+    post:
+      tags: [ServiceRequests]
+      summary: Create a new service request
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, requestType]
+              properties:
+                customerId: { type: integer, example: 1 }
+                requestType: { type: string, enum: [water_refill, check_request, manager_help, product_assistance, clean_up, other], example: water_refill }
+                description: { type: string, example: Table 4 needs water }
+                priority: { type: string, enum: [low, medium, high], example: medium }
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceRequest' }
+        '400': { description: Missing customerId or requestType }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Customer not found }
+
+  /api/service-requests/{id}:
+    get:
+      tags: [ServiceRequests]
+      summary: Get a single service request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Service request found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceRequest' }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '404': { description: Not found }
+
+    put:
+      tags: [ServiceRequests]
+      summary: Update a service request status or priority
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+                priority: { type: string, enum: [low, medium, high] }
+                description: { type: string }
+      responses:
+        '200':
+          description: Request updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceRequest' }
+        '400': { description: Invalid status transition or ID }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+    delete:
+      tags: [ServiceRequests]
+      summary: Delete a service request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Request deleted }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+  # ── Staff Assignments ──────────────────────────────────────────────────────
+  /api/staff-assignments:
+    get:
+      tags: [StaffAssignments]
+      summary: Get all staff assignments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: staffUserId
+          schema: { type: integer }
+      responses:
+        '200':
+          description: List of assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StaffAssignment' }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+    post:
+      tags: [StaffAssignments]
+      summary: Assign a service request to a staff member
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serviceRequestId, staffUserId]
+              properties:
+                serviceRequestId: { type: integer, example: 1 }
+                staffUserId: { type: integer, example: 3 }
+                notes: { type: string, example: Please handle promptly }
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffAssignment' }
+        '400': { description: Missing fields or cancelled request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Request or user not found }
+
+  /api/staff-assignments/{id}:
+    get:
+      tags: [StaffAssignments]
+      summary: Get a single assignment
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Assignment found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffAssignment' }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+    put:
+      tags: [StaffAssignments]
+      summary: Update assignment notes or mark complete
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { type: string }
+                markComplete: { type: boolean, example: true }
+      responses:
+        '200':
+          description: Assignment updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffAssignment' }
+        '400': { description: Invalid fields or ID }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+    delete:
+      tags: [StaffAssignments]
+      summary: Remove a staff assignment
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: Assignment removed }
+        '400': { description: Invalid ID format }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }

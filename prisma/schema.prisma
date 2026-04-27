@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int               @id @default(autoincrement())
+  name         String
+  email        String            @unique
+  passwordHash String
+  role         Role              @default(staff)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  assignments  StaffAssignment[]
+}
+
+model Customer {
+  id             Int              @id @default(autoincrement())
+  name           String
+  contactInfo    String?
+  locationLabel  String?
+  customerType   CustomerType     @default(guest)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  requests       ServiceRequest[]
+}
+
+model ServiceRequest {
+  id          Int               @id @default(autoincrement())
+  customerId  Int
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  requestType RequestType       @default(other)
+  description String?
+  priority    Priority          @default(medium)
+  status      RequestStatus     @default(open)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  assignments StaffAssignment[]
+}
+
+model StaffAssignment {
+  id               Int            @id @default(autoincrement())
+  serviceRequestId Int
+  serviceRequest   ServiceRequest @relation(fields: [serviceRequestId], references: [id])
+  staffUserId      Int
+  staffUser        User           @relation(fields: [staffUserId], references: [id])
+  assignedAt       DateTime       @default(now())
+  completedAt      DateTime?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+enum Role {
+  staff
+  manager
+  admin
+}
+
+enum CustomerType {
+  guest
+  member
+  shopper
+}
+
+enum RequestType {
+  water_refill
+  check_request
+  manager_help
+  product_assistance
+  clean_up
+  other
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum RequestStatus {
+  open
+  assigned
+  in_progress
+  completed
+  cancelled
+}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: responseflow-api
+    env: node
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run db:seed
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: responseflow-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: responseflow-db
+    databaseName: responseflow
+    user: responseflow
